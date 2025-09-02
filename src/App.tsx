@@ -9,6 +9,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Transparency from "./pages/Transparency";
 import NGOLogin from "./pages/NGOLogin";
+import NGODashboard from "./pages/NGODashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/transparency" element={<Transparency />} />
             <Route path="/ngo-login" element={<NGOLogin />} />
+            <Route path="/ngo-dashboard" element={<NGODashboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
