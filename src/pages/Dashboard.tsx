@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +19,18 @@ import {
 
 const Dashboard = () => {
   const [userType] = useState<"beneficiary" | "ngo">("beneficiary");
+  const [userData, setUserData] = useState<any>(null);
   
-  // Mock data for beneficiary dashboard
-  const beneficiaryData = {
+  useEffect(() => {
+    // Load user data from session storage
+    const storedData = sessionStorage.getItem('userData');
+    if (storedData) {
+      setUserData(JSON.parse(storedData));
+    }
+  }, []);
+  
+  // Default data if no session data available
+  const defaultData = {
     digitalId: "SID-A7X9K2M5P",
     name: "Maria Santos",
     location: "São Paulo, Brazil",
@@ -35,6 +44,21 @@ const Dashboard = () => {
       { id: 3, type: "Healthcare Credit", amount: 100, date: "2024-01-08", status: "completed" },
     ]
   };
+
+  // Use stored data or default data
+  const beneficiaryData = userData ? {
+    digitalId: userData.digitalId || defaultData.digitalId,
+    name: `${userData.firstName} ${userData.lastName}`,
+    location: userData.location || defaultData.location,
+    memberSince: userData.registrationDate ? new Date(userData.registrationDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : defaultData.memberSince,
+    totalAidReceived: defaultData.totalAidReceived,
+    activeTokens: defaultData.activeTokens,
+    pendingAid: defaultData.pendingAid,
+    recentTransactions: defaultData.recentTransactions,
+    verificationMethod: userData.verificationMethod,
+    hasPhoto: userData.hasPhoto,
+    verificationFiles: userData.verificationFiles || []
+  } : defaultData;
 
   const aidCategories = [
     { name: "Food & Nutrition", balance: 45, icon: Utensils, color: "text-accent" },

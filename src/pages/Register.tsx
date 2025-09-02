@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Shield, QrCode, CheckCircle2, Camera, Users, Building } from "lucide-react";
+import { Shield, QrCode, CheckCircle2, Camera, Users, Building, Upload, X } from "lucide-react";
 
 const Register = () => {
   const { toast } = useToast();
@@ -22,9 +22,90 @@ const Register = () => {
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [digitalId, setDigitalId] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const startCamera = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { width: 640, height: 480 } 
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      setShowCamera(true);
+      toast({
+        title: "Camera Started",
+        description: "Position your face in the center and click capture when ready.",
+      });
+    } catch (error) {
+      toast({
+        title: "Camera Error",
+        description: "Unable to access camera. Please check permissions.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  const stopCamera = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setShowCamera(false);
+  }, [cameraStream]);
+
+  const capturePhoto = useCallback(() => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        stopCamera();
+        toast({
+          title: "Photo Captured",
+          description: "Biometric verification photo captured successfully.",
+        });
+      }
+    }
+  }, [stopCamera, toast]);
+
+  const handleFileUpload = (files: FileList | null) => {
+    if (files) {
+      const newFiles = Array.from(files).filter(file => 
+        file.type.includes('image') || file.type.includes('pdf')
+      );
+      setUploadedFiles(prev => [...prev, ...newFiles]);
+      toast({
+        title: "Files Uploaded",
+        description: `${newFiles.length} files uploaded for verification.`,
+      });
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleVerificationMethodSelect = (method: string) => {
+    handleInputChange("verificationMethod", method);
+    
+    if (method === "biometric") {
+      startCamera();
+    } else {
+      stopCamera();
+    }
   };
 
   const handleGenerateId = async () => {
@@ -33,6 +114,17 @@ const Register = () => {
     setTimeout(() => {
       const id = `SID-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
       setDigitalId(id);
+      
+      // Save user data to session storage
+      const userData = {
+        ...formData,
+        digitalId: id,
+        verificationFiles: uploadedFiles.map(file => file.name),
+        registrationDate: new Date().toISOString(),
+        hasPhoto: formData.verificationMethod === "biometric"
+      };
+      sessionStorage.setItem('userData', JSON.stringify(userData));
+      
       setIsGenerating(false);
       setStep(3);
       toast({
@@ -217,16 +309,47 @@ const Register = () => {
                             ? "border-primary bg-primary-subtle" 
                             : "border-border hover:border-primary/50"
                         }`}
-                        onClick={() => handleInputChange("verificationMethod", "biometric")}
+                        onClick={() => handleVerificationMethodSelect("biometric")}
                       >
                         <CardContent className="p-4">
                           <div className="flex items-center space-x-3">
                             <Camera className="h-8 w-8 text-primary" />
                             <div>
                               <h3 className="font-semibold">Biometric Verification</h3>
-                              <p className="text-sm text-muted-foreground">Use facial recognition or fingerprint</p>
+                              <p className="text-sm text-muted-foreground">Use facial recognition</p>
                             </div>
                           </div>
+                          {formData.verificationMethod === "biometric" && (
+                            <div className="mt-4 space-y-4">
+                              {showCamera ? (
+                                <div className="space-y-3">
+                                  <div className="relative bg-black rounded-lg overflow-hidden">
+                                    <video 
+                                      ref={videoRef} 
+                                      autoPlay 
+                                      playsInline 
+                                      className="w-full h-48 object-cover"
+                                    />
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button onClick={capturePhoto} className="flex-1" size="sm">
+                                      <Camera className="h-4 w-4 mr-2" />
+                                      Capture Photo
+                                    </Button>
+                                    <Button onClick={stopCamera} variant="outline" size="sm">
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <Button onClick={startCamera} variant="outline" className="w-full" size="sm">
+                                  <Camera className="h-4 w-4 mr-2" />
+                                  Start Camera
+                                </Button>
+                              )}
+                              <canvas ref={canvasRef} className="hidden" />
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                       
@@ -236,16 +359,58 @@ const Register = () => {
                             ? "border-primary bg-primary-subtle" 
                             : "border-border hover:border-primary/50"
                         }`}
-                        onClick={() => handleInputChange("verificationMethod", "community")}
+                        onClick={() => handleVerificationMethodSelect("community")}
                       >
                         <CardContent className="p-4">
                           <div className="flex items-center space-x-3">
                             <Users className="h-8 w-8 text-primary" />
                             <div>
                               <h3 className="font-semibold">Community Verification</h3>
-                              <p className="text-sm text-muted-foreground">Verified by community members</p>
+                              <p className="text-sm text-muted-foreground">Upload community verification documents</p>
                             </div>
                           </div>
+                          {formData.verificationMethod === "community" && (
+                            <div className="mt-4 space-y-3">
+                              <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+                                <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                                <p className="text-sm text-muted-foreground mb-2">
+                                  Upload community verification documents
+                                </p>
+                                <input
+                                  type="file"
+                                  multiple
+                                  accept="image/*,application/pdf"
+                                  onChange={(e) => handleFileUpload(e.target.files)}
+                                  className="hidden"
+                                  id="community-upload"
+                                />
+                                <Button 
+                                  onClick={() => document.getElementById('community-upload')?.click()}
+                                  variant="outline" 
+                                  size="sm"
+                                >
+                                  Choose Files
+                                </Button>
+                              </div>
+                              {uploadedFiles.length > 0 && (
+                                <div className="space-y-2">
+                                  {uploadedFiles.map((file, index) => (
+                                    <div key={index} className="flex items-center justify-between p-2 bg-secondary rounded text-sm">
+                                      <span className="truncate">{file.name}</span>
+                                      <Button
+                                        onClick={() => removeFile(index)}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                       
@@ -255,16 +420,58 @@ const Register = () => {
                             ? "border-primary bg-primary-subtle" 
                             : "border-border hover:border-primary/50"
                         }`}
-                        onClick={() => handleInputChange("verificationMethod", "ngo")}
+                        onClick={() => handleVerificationMethodSelect("ngo")}
                       >
                         <CardContent className="p-4">
                           <div className="flex items-center space-x-3">
                             <Building className="h-8 w-8 text-primary" />
                             <div>
                               <h3 className="font-semibold">NGO Referral</h3>
-                              <p className="text-sm text-muted-foreground">Referred by trusted organization</p>
+                              <p className="text-sm text-muted-foreground">Upload NGO referral documents</p>
                             </div>
                           </div>
+                          {formData.verificationMethod === "ngo" && (
+                            <div className="mt-4 space-y-3">
+                              <div className="border-2 border-dashed border-border rounded-lg p-4 text-center">
+                                <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                                <p className="text-sm text-muted-foreground mb-2">
+                                  Upload NGO referral letter & ID documents
+                                </p>
+                                <input
+                                  type="file"
+                                  multiple
+                                  accept="image/*,application/pdf"
+                                  onChange={(e) => handleFileUpload(e.target.files)}
+                                  className="hidden"
+                                  id="ngo-upload"
+                                />
+                                <Button 
+                                  onClick={() => document.getElementById('ngo-upload')?.click()}
+                                  variant="outline" 
+                                  size="sm"
+                                >
+                                  Choose Files
+                                </Button>
+                              </div>
+                              {uploadedFiles.length > 0 && (
+                                <div className="space-y-2">
+                                  {uploadedFiles.map((file, index) => (
+                                    <div key={index} className="flex items-center justify-between p-2 bg-secondary rounded text-sm">
+                                      <span className="truncate">{file.name}</span>
+                                      <Button
+                                        onClick={() => removeFile(index)}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     </div>
