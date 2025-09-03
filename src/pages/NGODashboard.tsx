@@ -24,17 +24,37 @@ import {
   PieChart,
   BarChart3,
   Activity,
-  ExternalLink
+  ExternalLink,
+  User
 } from "lucide-react";
 import StatCard from "@/components/StatCard";
 
-// Mock data for demo purposes
-const mockBeneficiaries = [
-  { id: "0x1a2b", name: "Alice Johnson", verification: "verified", aidReceived: 850, location: "District A" },
-  { id: "0x2c3d", name: "Bob Wilson", verification: "pending", aidReceived: 0, location: "District B" },
-  { id: "0x3e4f", name: "Carol Smith", verification: "verified", aidReceived: 1200, location: "District A" },
-  { id: "0x4g5h", name: "David Brown", verification: "suspended", aidReceived: 600, location: "District C" },
-];
+// Get beneficiaries from session storage or use mock data
+const getBeneficiaries = () => {
+  const allUsers = JSON.parse(sessionStorage.getItem('allUsers') || '[]');
+  const registeredUsers = allUsers.map((user: any) => ({
+    id: user.digitalId,
+    name: `${user.firstName} ${user.lastName}`,
+    verification: user.isVerified ? "verified" : "pending",
+    aidReceived: user.aidBalance || 0,
+    location: user.location,
+    hasPhoto: user.hasPhoto,
+    biometricPhoto: user.biometricPhoto,
+    verificationMethod: user.verificationMethod
+  }));
+  
+  // If no registered users, show mock data
+  if (registeredUsers.length === 0) {
+    return [
+      { id: "0x1a2b", name: "Alice Johnson", verification: "verified", aidReceived: 850, location: "District A", hasPhoto: false },
+      { id: "0x2c3d", name: "Bob Wilson", verification: "pending", aidReceived: 0, location: "District B", hasPhoto: false },
+      { id: "0x3e4f", name: "Carol Smith", verification: "verified", aidReceived: 1200, location: "District A", hasPhoto: false },
+      { id: "0x4g5h", name: "David Brown", verification: "suspended", aidReceived: 600, location: "District C", hasPhoto: false },
+    ];
+  }
+  
+  return registeredUsers;
+};
 
 const mockVendors = [
   { id: "0x5i6j", name: "Village Store A", wallet: "0x789abc", redemptions: 4500, status: "active" },
@@ -53,11 +73,17 @@ const NGODashboard = () => {
   const [ngoSession, setNgoSession] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
+  const [beneficiaries, setBeneficiaries] = useState(getBeneficiaries());
   const [aidAllocationForm, setAidAllocationForm] = useState({
     beneficiaryId: "",
     amount: "",
     category: ""
   });
+
+  // Refresh beneficiaries data when component mounts or updates
+  useEffect(() => {
+    setBeneficiaries(getBeneficiaries());
+  }, []);
 
   useEffect(() => {
     const session = sessionStorage.getItem('ngoSession');
@@ -80,11 +106,53 @@ const NGODashboard = () => {
 
   const handleAidAllocation = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Update beneficiary aid balance
+    const allUsers = JSON.parse(sessionStorage.getItem('allUsers') || '[]');
+    const updatedUsers = allUsers.map((user: any) => {
+      if (user.digitalId === aidAllocationForm.beneficiaryId) {
+        return { ...user, aidBalance: (user.aidBalance || 0) + parseInt(aidAllocationForm.amount) };
+      }
+      return user;
+    });
+    sessionStorage.setItem('allUsers', JSON.stringify(updatedUsers));
+    
+    // Also update current user data if it matches
+    const currentUser = JSON.parse(sessionStorage.getItem('userData') || '{}');
+    if (currentUser.digitalId === aidAllocationForm.beneficiaryId) {
+      currentUser.aidBalance = (currentUser.aidBalance || 0) + parseInt(aidAllocationForm.amount);
+      sessionStorage.setItem('userData', JSON.stringify(currentUser));
+    }
+    
+    // Refresh beneficiaries display
+    setBeneficiaries(getBeneficiaries());
+    
     toast({
       title: "Aid Allocated Successfully",
-      description: `${aidAllocationForm.amount} tokens allocated to beneficiary.`,
+      description: `$${aidAllocationForm.amount} allocated to beneficiary.`,
     });
     setAidAllocationForm({ beneficiaryId: "", amount: "", category: "" });
+  };
+
+  const handleBeneficiaryAction = (action: string, beneficiaryId: string) => {
+    toast({
+      title: `Beneficiary ${action}`,
+      description: `Action ${action} performed on beneficiary ${beneficiaryId}`,
+    });
+  };
+
+  const handleVendorAction = (action: string, vendorId: string) => {
+    toast({
+      title: `Vendor ${action}`,
+      description: `Action ${action} performed on vendor ${vendorId}`,
+    });
+  };
+
+  const handleQuickAction = (action: string) => {
+    toast({
+      title: action,
+      description: `${action} feature would be implemented here`,
+    });
   };
 
   if (!ngoSession) {
@@ -183,19 +251,19 @@ const NGODashboard = () => {
                   <CardDescription>Common dashboard actions</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Button className="w-full justify-start">
+                  <Button className="w-full justify-start" onClick={() => handleQuickAction("Register New Beneficiary")}>
                     <UserPlus className="mr-2 h-4 w-4" />
                     Register New Beneficiary
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button variant="outline" className="w-full justify-start" onClick={() => setActiveTab("allocation")}>
                     <Coins className="mr-2 h-4 w-4" />
                     Allocate Aid Tokens
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickAction("Add New Vendor")}>
                     <Building className="mr-2 h-4 w-4" />
                     Add New Vendor
                   </Button>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickAction("Generate Report")}>
                     <BarChart3 className="mr-2 h-4 w-4" />
                     Generate Report
                   </Button>
@@ -211,7 +279,7 @@ const NGODashboard = () => {
                 <h2 className="text-2xl font-bold">Beneficiary Management</h2>
                 <p className="text-muted-foreground">Manage and track all registered beneficiaries</p>
               </div>
-              <Button>
+              <Button onClick={() => handleQuickAction("Add Beneficiary")}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 Add Beneficiary
               </Button>
@@ -227,7 +295,7 @@ const NGODashboard = () => {
                   className="pl-10"
                 />
               </div>
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => handleQuickAction("Filter Beneficiaries")}>
                 <Filter className="mr-2 h-4 w-4" />
                 Filter
               </Button>
@@ -240,17 +308,34 @@ const NGODashboard = () => {
                     <TableRow>
                       <TableHead>ID Hash</TableHead>
                       <TableHead>Name</TableHead>
+                      <TableHead>Photo</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Verification</TableHead>
-                      <TableHead>Aid Received</TableHead>
+                      <TableHead>Aid Balance</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockBeneficiaries.map((beneficiary) => (
+                    {beneficiaries.filter(b => 
+                      b.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      b.id.toLowerCase().includes(searchTerm.toLowerCase())
+                    ).map((beneficiary) => (
                       <TableRow key={beneficiary.id}>
                         <TableCell className="font-mono">{beneficiary.id}</TableCell>
                         <TableCell>{beneficiary.name}</TableCell>
+                        <TableCell>
+                          {beneficiary.hasPhoto && beneficiary.biometricPhoto ? (
+                            <img 
+                              src={beneficiary.biometricPhoto} 
+                              alt="Beneficiary" 
+                              className="w-8 h-8 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>{beneficiary.location}</TableCell>
                         <TableCell>
                           <Badge variant={
@@ -263,13 +348,13 @@ const NGODashboard = () => {
                         <TableCell>${beneficiary.aidReceived}</TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleBeneficiaryAction("view", beneficiary.id)}>
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleBeneficiaryAction("verify", beneficiary.id)}>
                               <CheckCircle className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleBeneficiaryAction("suspend", beneficiary.id)}>
                               <Ban className="h-4 w-4" />
                             </Button>
                           </div>
@@ -289,7 +374,7 @@ const NGODashboard = () => {
                 <h2 className="text-2xl font-bold">Vendor Management</h2>
                 <p className="text-muted-foreground">Manage aid redemption partners</p>
               </div>
-              <Button>
+              <Button onClick={() => handleQuickAction("Add Vendor")}>
                 <Building className="mr-2 h-4 w-4" />
                 Add Vendor
               </Button>
@@ -320,10 +405,10 @@ const NGODashboard = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleVendorAction("view", vendor.id)}>
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline">
+                            <Button size="sm" variant="outline" onClick={() => handleVendorAction(vendor.status === "active" ? "deactivate" : "activate", vendor.id)}>
                               {vendor.status === "active" ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
                             </Button>
                           </div>
@@ -353,7 +438,7 @@ const NGODashboard = () => {
                           <SelectValue placeholder="Choose beneficiary" />
                         </SelectTrigger>
                         <SelectContent>
-                          {mockBeneficiaries.filter(b => b.verification === "verified").map((beneficiary) => (
+                          {beneficiaries.filter(b => b.verification === "verified").map((beneficiary) => (
                             <SelectItem key={beneficiary.id} value={beneficiary.id}>
                               {beneficiary.name} ({beneficiary.id})
                             </SelectItem>
@@ -514,7 +599,7 @@ const NGODashboard = () => {
                         <TableCell>{transaction.date}</TableCell>
                         <TableCell className="font-mono">{transaction.hash}</TableCell>
                         <TableCell>
-                          <Button size="sm" variant="outline">
+                          <Button size="sm" variant="outline" onClick={() => handleQuickAction("View on Blockchain")}>
                             <ExternalLink className="h-4 w-4" />
                           </Button>
                         </TableCell>

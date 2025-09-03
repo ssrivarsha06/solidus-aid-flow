@@ -72,6 +72,9 @@ const Register = () => {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0);
+        // Convert canvas to base64 and store
+        const photoData = canvas.toDataURL('image/jpeg', 0.8);
+        setFormData(prev => ({ ...prev, biometricPhoto: photoData }));
         stopCamera();
         toast({
           title: "Photo Captured",
@@ -121,8 +124,17 @@ const Register = () => {
         digitalId: id,
         verificationFiles: uploadedFiles.map(file => file.name),
         registrationDate: new Date().toISOString(),
-        hasPhoto: formData.verificationMethod === "biometric"
+        hasPhoto: formData.verificationMethod === "biometric",
+        isVerified: true,
+        aidBalance: 0,
+        status: 'active'
       };
+      
+      // Save to both individual user storage and global users list
+      sessionStorage.setItem('userData', JSON.stringify(userData));
+      const existingUsers = JSON.parse(sessionStorage.getItem('allUsers') || '[]');
+      const updatedUsers = [...existingUsers, userData];
+      sessionStorage.setItem('allUsers', JSON.stringify(updatedUsers));
       sessionStorage.setItem('userData', JSON.stringify(userData));
       
       setIsGenerating(false);

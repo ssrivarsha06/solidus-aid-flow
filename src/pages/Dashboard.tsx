@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
 import StatCard from "@/components/StatCard";
 import { 
   Shield, 
@@ -14,12 +15,16 @@ import {
   Heart,
   GraduationCap,
   Utensils,
-  ArrowUpRight
+  ArrowUpRight,
+  Camera,
+  User
 } from "lucide-react";
 
 const Dashboard = () => {
+  const { toast } = useToast();
   const [userType] = useState<"beneficiary" | "ngo">("beneficiary");
   const [userData, setUserData] = useState<any>(null);
+  const [showQR, setShowQR] = useState(false);
   
   useEffect(() => {
     // Load user data from session storage
@@ -28,6 +33,28 @@ const Dashboard = () => {
       setUserData(JSON.parse(storedData));
     }
   }, []);
+
+  const handleShowQR = () => {
+    setShowQR(!showQR);
+    toast({
+      title: showQR ? "QR Code Hidden" : "QR Code Displayed",
+      description: showQR ? "Your digital ID is now hidden" : "Share this QR code to verify your identity",
+    });
+  };
+
+  const handleRedeemTokens = () => {
+    toast({
+      title: "Redeem Tokens",
+      description: "Redirecting to vendor marketplace...",
+    });
+  };
+
+  const handleViewTransactions = () => {
+    toast({
+      title: "Transaction History",
+      description: "Loading your complete transaction history...",
+    });
+  };
   
   // Default data if no session data available
   const defaultData = {
@@ -51,14 +78,14 @@ const Dashboard = () => {
     name: `${userData.firstName} ${userData.lastName}`,
     location: userData.location || defaultData.location,
     memberSince: userData.registrationDate ? new Date(userData.registrationDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : defaultData.memberSince,
-    totalAidReceived: defaultData.totalAidReceived,
+    totalAidReceived: userData.aidBalance || defaultData.totalAidReceived,
     activeTokens: defaultData.activeTokens,
     pendingAid: defaultData.pendingAid,
     recentTransactions: defaultData.recentTransactions,
     verificationMethod: userData.verificationMethod,
     hasPhoto: userData.hasPhoto,
     verificationFiles: userData.verificationFiles || []
-  } : defaultData;
+  } : { ...defaultData, hasPhoto: false, verificationMethod: null };
 
   const aidCategories = [
     { name: "Food & Nutrition", balance: 45, icon: Utensils, color: "text-accent" },
@@ -76,9 +103,9 @@ const Dashboard = () => {
               <h1 className="text-3xl font-bold text-foreground">Welcome back, {beneficiaryData.name}</h1>
               <p className="text-muted-foreground">Manage your digital identity and aid balance</p>
             </div>
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={handleShowQR}>
               <QrCode className="h-4 w-4" />
-              Show ID
+              {showQR ? "Hide ID" : "Show ID"}
             </Button>
           </div>
           
@@ -87,9 +114,22 @@ const Dashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="bg-white/20 p-3 rounded-full">
-                    <Shield className="h-8 w-8 text-white" />
-                  </div>
+                  {beneficiaryData.hasPhoto && userData?.biometricPhoto ? (
+                    <div className="relative">
+                      <img 
+                        src={userData.biometricPhoto} 
+                        alt="Biometric verification" 
+                        className="w-16 h-16 rounded-full object-cover border-2 border-white/30"
+                      />
+                      <div className="absolute -bottom-1 -right-1 bg-white/20 p-1 rounded-full">
+                        <Camera className="h-3 w-3 text-white" />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white/20 p-3 rounded-full">
+                      <User className="h-8 w-8 text-white" />
+                    </div>
+                  )}
                   <div>
                     <h2 className="text-xl font-bold">Digital Identity</h2>
                     <p className="text-white/90 font-mono text-sm">{beneficiaryData.digitalId}</p>
@@ -103,6 +143,11 @@ const Dashboard = () => {
                     <MapPin className="h-4 w-4 mr-1" />
                     {beneficiaryData.location}
                   </div>
+                  {showQR && (
+                    <div className="mt-3 bg-white p-2 rounded">
+                      <QrCode className="h-12 w-12 text-primary mx-auto" />
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -156,7 +201,7 @@ const Dashboard = () => {
                   </div>
                 ))}
                 
-                <Button className="w-full mt-6" variant="accent">
+                <Button className="w-full mt-6" variant="accent" onClick={handleRedeemTokens}>
                   <Gift className="h-4 w-4 mr-2" />
                   Redeem Aid Tokens
                 </Button>
@@ -189,7 +234,7 @@ const Dashboard = () => {
                   ))}
                 </div>
                 
-                <Button variant="ghost" className="w-full mt-4 text-primary">
+                <Button variant="ghost" className="w-full mt-4 text-primary" onClick={handleViewTransactions}>
                   View All Transactions
                   <ArrowUpRight className="h-4 w-4 ml-2" />
                 </Button>
