@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import StatCard from "@/components/StatCard";
+import VendorMarketplace from "@/components/VendorMarketplace";
 import { 
   Shield, 
   Coins, 
@@ -25,6 +27,8 @@ const Dashboard = () => {
   const [userType] = useState<"beneficiary" | "ngo">("beneficiary");
   const [userData, setUserData] = useState<any>(null);
   const [showQR, setShowQR] = useState(false);
+  const [userTokens, setUserTokens] = useState(125);
+  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
   
   useEffect(() => {
     // Load user data from session storage
@@ -32,6 +36,39 @@ const Dashboard = () => {
     if (storedData) {
       setUserData(JSON.parse(storedData));
     }
+
+    // Load tokens and transactions
+    const storedTokens = sessionStorage.getItem('userTokens');
+    if (storedTokens) {
+      setUserTokens(parseInt(storedTokens));
+    } else {
+      sessionStorage.setItem('userTokens', '125');
+    }
+
+    const storedTransactions = sessionStorage.getItem('userTransactions');
+    if (storedTransactions) {
+      setRecentTransactions(JSON.parse(storedTransactions));
+    } else {
+      // Default transactions
+      const defaultTransactions = [
+        { id: 1, type: "Food Voucher", amount: 50, date: "2024-01-15", status: "completed" },
+        { id: 2, type: "Education Grant", amount: 200, date: "2024-01-10", status: "completed" },
+        { id: 3, type: "Healthcare Credit", amount: 100, date: "2024-01-08", status: "completed" },
+      ];
+      setRecentTransactions(defaultTransactions);
+      sessionStorage.setItem('userTransactions', JSON.stringify(defaultTransactions));
+    }
+
+    // Listen for token updates
+    const handleTokenUpdate = () => {
+      const updatedTokens = sessionStorage.getItem('userTokens');
+      const updatedTransactions = sessionStorage.getItem('userTransactions');
+      if (updatedTokens) setUserTokens(parseInt(updatedTokens));
+      if (updatedTransactions) setRecentTransactions(JSON.parse(updatedTransactions));
+    };
+
+    window.addEventListener('tokenUpdate', handleTokenUpdate);
+    return () => window.removeEventListener('tokenUpdate', handleTokenUpdate);
   }, []);
 
   const handleShowQR = () => {
@@ -43,10 +80,7 @@ const Dashboard = () => {
   };
 
   const handleRedeemTokens = () => {
-    toast({
-      title: "Redeem Tokens",
-      description: "Redirecting to vendor marketplace...",
-    });
+    // This will open the vendor marketplace dialog
   };
 
   const handleViewTransactions = () => {
@@ -63,13 +97,9 @@ const Dashboard = () => {
     location: "São Paulo, Brazil",
     memberSince: "March 2024",
     totalAidReceived: 450,
-    activeTokens: 125,
+    activeTokens: userTokens,
     pendingAid: 75,
-    recentTransactions: [
-      { id: 1, type: "Food Voucher", amount: 50, date: "2024-01-15", status: "completed" },
-      { id: 2, type: "Education Grant", amount: 200, date: "2024-01-10", status: "completed" },
-      { id: 3, type: "Healthcare Credit", amount: 100, date: "2024-01-08", status: "completed" },
-    ]
+    recentTransactions: recentTransactions.slice(0, 3)
   };
 
   // Use stored data or default data
@@ -79,9 +109,9 @@ const Dashboard = () => {
     location: userData.location || defaultData.location,
     memberSince: userData.registrationDate ? new Date(userData.registrationDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : defaultData.memberSince,
     totalAidReceived: userData.aidBalance || defaultData.totalAidReceived,
-    activeTokens: defaultData.activeTokens,
+    activeTokens: userTokens,
     pendingAid: defaultData.pendingAid,
-    recentTransactions: defaultData.recentTransactions,
+    recentTransactions: recentTransactions.slice(0, 3),
     verificationMethod: userData.verificationMethod,
     hasPhoto: userData.hasPhoto,
     verificationFiles: userData.verificationFiles || []
@@ -201,10 +231,23 @@ const Dashboard = () => {
                   </div>
                 ))}
                 
-                <Button className="w-full mt-6" variant="accent" onClick={handleRedeemTokens}>
-                  <Gift className="h-4 w-4 mr-2" />
-                  Redeem Aid Tokens
-                </Button>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button className="w-full mt-6" variant="accent">
+                      <Gift className="h-4 w-4 mr-2" />
+                      Redeem Aid Tokens
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Vendor Marketplace</DialogTitle>
+                      <DialogDescription>
+                        Use your aid tokens to purchase essential items from verified vendors
+                      </DialogDescription>
+                    </DialogHeader>
+                    <VendorMarketplace />
+                  </DialogContent>
+                </Dialog>
               </CardContent>
             </Card>
           </div>
@@ -218,14 +261,19 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {beneficiaryData.recentTransactions.map((transaction) => (
+                  {recentTransactions.slice(0, 3).map((transaction) => (
                     <div key={transaction.id} className="flex items-center justify-between p-3 bg-secondary rounded-lg">
                       <div>
                         <p className="font-medium text-sm">{transaction.type}</p>
                         <p className="text-xs text-muted-foreground">{transaction.date}</p>
+                        {transaction.vendor && (
+                          <p className="text-xs text-muted-foreground">From: {transaction.vendor}</p>
+                        )}
                       </div>
                       <div className="text-right">
-                        <p className="font-medium text-sm">${transaction.amount}</p>
+                        <p className={`font-medium text-sm ${transaction.amount < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                          {transaction.amount < 0 ? '' : '$'}{Math.abs(transaction.amount)}{transaction.amount < 0 ? ' tokens' : ''}
+                        </p>
                         <Badge variant="outline" className="text-xs">
                           {transaction.status}
                         </Badge>

@@ -62,8 +62,10 @@ const Home = () => {
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </Button>
-            <Button variant="outline" size="lg" onClick={() => window.location.href = "/transparency"}>
-              View Live Impact
+            <Button variant="outline" size="lg" asChild>
+              <Link to="/transparency">
+                View Live Impact
+              </Link>
             </Button>
           </div>
         </div>
@@ -133,11 +135,15 @@ const Home = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button variant="accent" size="lg" onClick={() => window.location.href = "/register"}>
-              Start Your Journey
+            <Button variant="accent" size="lg" asChild>
+              <Link to="/register">
+                Start Your Journey
+              </Link>
             </Button>
-            <Button variant="outline" size="lg" className="border-white text-white hover:bg-white hover:text-primary" onClick={() => window.location.href = "/ngo-login"}>
-              NGO Partnership
+            <Button variant="outline" size="lg" className="border-white text-white hover:bg-white hover:text-primary" asChild>
+              <Link to="/ngo-login">
+                NGO Partnership
+              </Link>
             </Button>
           </div>
         </div>
