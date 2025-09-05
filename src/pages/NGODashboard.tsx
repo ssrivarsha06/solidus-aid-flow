@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Users, 
@@ -25,9 +26,28 @@ import {
   BarChart3,
   Activity,
   ExternalLink,
-  User
+  User,
+  Plus
 } from "lucide-react";
 import StatCard from "@/components/StatCard";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart as RechartsPieChart, Cell, ResponsiveContainer, Pie } from 'recharts';
+
+// Chart data
+const chartData = [
+  { month: 'Jan', food: 4000, health: 2400, education: 2400 },
+  { month: 'Feb', food: 3000, health: 1398, education: 2210 },
+  { month: 'Mar', food: 2000, health: 9800, education: 2290 },
+  { month: 'Apr', food: 2780, health: 3908, education: 2000 },
+  { month: 'May', food: 1890, health: 4800, education: 2181 },
+  { month: 'Jun', food: 2390, health: 3800, education: 2500 },
+];
+
+const pieData = [
+  { name: 'Food & Nutrition', value: 400, color: '#0088FE' },
+  { name: 'Healthcare', value: 300, color: '#00C49F' },
+  { name: 'Education', value: 300, color: '#FFBB28' },
+  { name: 'Emergency', value: 200, color: '#FF8042' },
+];
 
 // Get beneficiaries from session storage or use mock data
 const getBeneficiaries = () => {
@@ -40,33 +60,72 @@ const getBeneficiaries = () => {
     location: user.location,
     hasPhoto: user.hasPhoto,
     biometricPhoto: user.biometricPhoto,
-    verificationMethod: user.verificationMethod
+    verificationMethod: user.verificationMethod,
+    status: user.isVerified ? "verified" : "pending"
   }));
   
-  // If no registered users, show mock data
-  if (registeredUsers.length === 0) {
-    return [
-      { id: "0x1a2b", name: "Alice Johnson", verification: "verified", aidReceived: 850, location: "District A", hasPhoto: false },
-      { id: "0x2c3d", name: "Bob Wilson", verification: "pending", aidReceived: 0, location: "District B", hasPhoto: false },
-      { id: "0x3e4f", name: "Carol Smith", verification: "verified", aidReceived: 1200, location: "District A", hasPhoto: false },
-      { id: "0x4g5h", name: "David Brown", verification: "suspended", aidReceived: 600, location: "District C", hasPhoto: false },
-    ];
-  }
+  // Add mock data if needed
+  const mockBeneficiaries = [
+    { id: "0x1a2b", name: "Alice Johnson", verification: "verified", aidReceived: 850, location: "District A", hasPhoto: false, status: "verified" },
+    { id: "0x2c3d", name: "Bob Wilson", verification: "pending", aidReceived: 0, location: "District B", hasPhoto: false, status: "pending" },
+    { id: "0x3e4f", name: "Carol Smith", verification: "verified", aidReceived: 1200, location: "District A", hasPhoto: false, status: "verified" },
+    { id: "0x4g5h", name: "David Brown", verification: "suspended", aidReceived: 600, location: "District C", hasPhoto: false, status: "suspended" },
+  ];
   
-  return registeredUsers;
+  return [...registeredUsers, ...mockBeneficiaries];
 };
 
-const mockVendors = [
-  { id: "0x5i6j", name: "Village Store A", wallet: "0x789abc", redemptions: 4500, status: "active" },
-  { id: "0x6k7l", name: "Medical Center B", wallet: "0x456def", redemptions: 2800, status: "active" },
-  { id: "0x7m8n", name: "Food Market C", wallet: "0x123ghi", redemptions: 6200, status: "inactive" },
-];
+// Get NGO data from session storage
+const getNGOData = () => {
+  const ngoData = JSON.parse(sessionStorage.getItem('ngoData') || '{}');
+  return {
+    totalAidDistributed: ngoData.totalAidDistributed || 125430,
+    totalBeneficiaries: ngoData.totalBeneficiaries || getBeneficiaries().length,
+    activeVendors: ngoData.activeVendors || 23,
+    currentBalance: ngoData.currentBalance || 45200,
+    recentActivity: ngoData.recentActivity || []
+  };
+};
 
-const mockTransactions = [
-  { type: "Aid Allocation", user: "Alice Johnson", amount: 250, date: "2024-01-15", hash: "0xabc123" },
-  { type: "Aid Redemption", user: "Bob Wilson", amount: 150, date: "2024-01-14", hash: "0xdef456" },
-  { type: "Vendor Payment", user: "Village Store A", amount: 800, date: "2024-01-13", hash: "0xghi789" },
-];
+// Save NGO data to session storage
+const saveNGOData = (data: any) => {
+  sessionStorage.setItem('ngoData', JSON.stringify(data));
+};
+
+// Get vendors from session storage
+const getVendors = () => {
+  const vendors = JSON.parse(sessionStorage.getItem('vendors') || '[]');
+  const defaultVendors = [
+    { id: "0x5i6j", name: "Village Store A", wallet: "0x789abc", redemptions: 4500, status: "active" },
+    { id: "0x6k7l", name: "Medical Center B", wallet: "0x456def", redemptions: 2800, status: "active" },
+    { id: "0x7m8n", name: "Food Market C", wallet: "0x123ghi", redemptions: 6200, status: "inactive" },
+  ];
+  return vendors.length > 0 ? vendors : defaultVendors;
+};
+
+// Get transactions from session storage
+const getTransactions = () => {
+  const transactions = JSON.parse(sessionStorage.getItem('ngoTransactions') || '[]');
+  const defaultTransactions = [
+    { type: "Aid Allocation", user: "Alice Johnson", amount: 250, date: "2024-01-15", hash: "0xabc123", id: "1" },
+    { type: "Aid Redemption", user: "Bob Wilson", amount: 150, date: "2024-01-14", hash: "0xdef456", id: "2" },
+    { type: "Vendor Payment", user: "Village Store A", amount: 800, date: "2024-01-13", hash: "0xghi789", id: "3" },
+  ];
+  return transactions.length > 0 ? transactions : defaultTransactions;
+};
+
+// Save transaction to session storage
+const saveTransaction = (transaction: any) => {
+  const transactions = getTransactions();
+  const newTransaction = {
+    ...transaction,
+    id: Date.now().toString(),
+    hash: `0x${Math.random().toString(16).substr(2, 8)}`
+  };
+  transactions.unshift(newTransaction);
+  sessionStorage.setItem('ngoTransactions', JSON.stringify(transactions));
+  return newTransaction;
+};
 
 const NGODashboard = () => {
   const { toast } = useToast();
@@ -74,15 +133,35 @@ const NGODashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [beneficiaries, setBeneficiaries] = useState(getBeneficiaries());
+  const [vendors, setVendors] = useState(getVendors());
+  const [transactions, setTransactions] = useState(getTransactions());
+  const [ngoData, setNgoData] = useState(getNGOData());
+  const [showBeneficiaryDialog, setShowBeneficiaryDialog] = useState(false);
+  const [showVendorDialog, setShowVendorDialog] = useState(false);
+  const [showAllTransactions, setShowAllTransactions] = useState(false);
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<any>(null);
+  const [newBeneficiary, setNewBeneficiary] = useState({
+    name: "",
+    location: "",
+    emergencyContact: ""
+  });
+  const [newVendor, setNewVendor] = useState({
+    name: "",
+    wallet: "",
+    category: ""
+  });
   const [aidAllocationForm, setAidAllocationForm] = useState({
     beneficiaryId: "",
     amount: "",
     category: ""
   });
 
-  // Refresh beneficiaries data when component mounts or updates
+  // Refresh data when component mounts or updates
   useEffect(() => {
     setBeneficiaries(getBeneficiaries());
+    setVendors(getVendors());
+    setTransactions(getTransactions());
+    setNgoData(getNGOData());
   }, []);
 
   useEffect(() => {
@@ -90,7 +169,6 @@ const NGODashboard = () => {
     if (session) {
       setNgoSession(JSON.parse(session));
     } else {
-      // Redirect if not authenticated
       window.location.href = "/ngo-login";
     }
   }, []);
@@ -104,54 +182,210 @@ const NGODashboard = () => {
     window.location.href = "/ngo-login";
   };
 
+  const updateNGOStats = (updates: any) => {
+    const updatedData = { ...ngoData, ...updates };
+    setNgoData(updatedData);
+    saveNGOData(updatedData);
+  };
+
+  const handleRegisterBeneficiary = () => {
+    if (!newBeneficiary.name || !newBeneficiary.location) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const beneficiary = {
+      id: `0x${Math.random().toString(16).substr(2, 8)}`,
+      name: newBeneficiary.name,
+      verification: "pending",
+      aidReceived: 0,
+      location: newBeneficiary.location,
+      hasPhoto: false,
+      status: "pending",
+      emergencyContact: newBeneficiary.emergencyContact
+    };
+
+    const updatedBeneficiaries = [...beneficiaries, beneficiary];
+    setBeneficiaries(updatedBeneficiaries);
+    
+    // Update NGO stats
+    updateNGOStats({
+      totalBeneficiaries: updatedBeneficiaries.length
+    });
+
+    // Save recent activity
+    const activity = {
+      type: "Beneficiary Registration",
+      user: beneficiary.name,
+      amount: 0,
+      date: new Date().toISOString().split('T')[0]
+    };
+    saveTransaction(activity);
+    setTransactions(getTransactions());
+
+    toast({
+      title: "Beneficiary Registered",
+      description: `${beneficiary.name} has been registered successfully.`,
+    });
+
+    setNewBeneficiary({ name: "", location: "", emergencyContact: "" });
+    setShowBeneficiaryDialog(false);
+  };
+
+  const handleAddVendor = () => {
+    if (!newVendor.name || !newVendor.wallet) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const vendor = {
+      id: `0x${Math.random().toString(16).substr(2, 8)}`,
+      name: newVendor.name,
+      wallet: newVendor.wallet,
+      redemptions: 0,
+      status: "active",
+      category: newVendor.category
+    };
+
+    const updatedVendors = [...vendors, vendor];
+    setVendors(updatedVendors);
+    sessionStorage.setItem('vendors', JSON.stringify(updatedVendors));
+
+    // Update NGO stats
+    updateNGOStats({
+      activeVendors: updatedVendors.filter(v => v.status === "active").length
+    });
+
+    toast({
+      title: "Vendor Added",
+      description: `${vendor.name} has been added successfully.`,
+    });
+
+    setNewVendor({ name: "", wallet: "", category: "" });
+    setShowVendorDialog(false);
+  };
+
   const handleAidAllocation = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const amount = parseInt(aidAllocationForm.amount);
     
     // Update beneficiary aid balance
     const allUsers = JSON.parse(sessionStorage.getItem('allUsers') || '[]');
     const updatedUsers = allUsers.map((user: any) => {
       if (user.digitalId === aidAllocationForm.beneficiaryId) {
-        return { ...user, aidBalance: (user.aidBalance || 0) + parseInt(aidAllocationForm.amount) };
+        return { ...user, aidBalance: (user.aidBalance || 0) + amount };
       }
       return user;
     });
     sessionStorage.setItem('allUsers', JSON.stringify(updatedUsers));
     
-    // Also update current user data if it matches
-    const currentUser = JSON.parse(sessionStorage.getItem('userData') || '{}');
-    if (currentUser.digitalId === aidAllocationForm.beneficiaryId) {
-      currentUser.aidBalance = (currentUser.aidBalance || 0) + parseInt(aidAllocationForm.amount);
-      sessionStorage.setItem('userData', JSON.stringify(currentUser));
-    }
+    // Update beneficiaries list
+    const updatedBeneficiaries = beneficiaries.map(b => {
+      if (b.id === aidAllocationForm.beneficiaryId) {
+        return { ...b, aidReceived: b.aidReceived + amount };
+      }
+      return b;
+    });
+    setBeneficiaries(updatedBeneficiaries);
     
-    // Refresh beneficiaries display
-    setBeneficiaries(getBeneficiaries());
+    // Update NGO stats
+    updateNGOStats({
+      totalAidDistributed: ngoData.totalAidDistributed + amount,
+      currentBalance: ngoData.currentBalance - amount
+    });
+
+    // Save transaction
+    const beneficiary = beneficiaries.find(b => b.id === aidAllocationForm.beneficiaryId);
+    const transaction = {
+      type: "Aid Allocation",
+      user: beneficiary?.name || "Unknown",
+      amount: amount,
+      date: new Date().toISOString().split('T')[0],
+      category: aidAllocationForm.category
+    };
+    saveTransaction(transaction);
+    setTransactions(getTransactions());
     
     toast({
       title: "Aid Allocated Successfully",
-      description: `$${aidAllocationForm.amount} allocated to beneficiary.`,
+      description: `$${amount} allocated to ${beneficiary?.name}.`,
     });
     setAidAllocationForm({ beneficiaryId: "", amount: "", category: "" });
   };
 
-  const handleBeneficiaryAction = (action: string, beneficiaryId: string) => {
+  const handleBeneficiaryAction = (action: string, beneficiaryId: string, beneficiaryName: string) => {
+    if (action === "view") {
+      const beneficiary = beneficiaries.find(b => b.id === beneficiaryId);
+      setSelectedBeneficiary(beneficiary);
+      return;
+    }
+
+    // Update beneficiary status
+    const updatedBeneficiaries = beneficiaries.map(b => {
+      if (b.id === beneficiaryId) {
+        let newStatus = b.status;
+        if (action === "verify") newStatus = "verified";
+        if (action === "suspend") newStatus = "suspended";
+        return { ...b, status: newStatus, verification: newStatus };
+      }
+      return b;
+    });
+    setBeneficiaries(updatedBeneficiaries);
+
+    // Save transaction
+    const transaction = {
+      type: "Beneficiary Action",
+      user: beneficiaryName,
+      amount: 0,
+      date: new Date().toISOString().split('T')[0],
+      action: action
+    };
+    saveTransaction(transaction);
+    setTransactions(getTransactions());
+
     toast({
-      title: `Beneficiary ${action}`,
-      description: `Action ${action} performed on beneficiary ${beneficiaryId}`,
+      title: `Beneficiary ${action}d`,
+      description: `${beneficiaryName} has been ${action}d successfully.`,
     });
   };
 
-  const handleVendorAction = (action: string, vendorId: string) => {
-    toast({
-      title: `Vendor ${action}`,
-      description: `Action ${action} performed on vendor ${vendorId}`,
-    });
-  };
+  const handleVendorAction = (action: string, vendorId: string, vendorName: string) => {
+    if (action === "view") {
+      toast({
+        title: "Vendor Details",
+        description: `Viewing details for ${vendorName}`,
+      });
+      return;
+    }
 
-  const handleQuickAction = (action: string) => {
+    // Update vendor status
+    const updatedVendors = vendors.map(v => {
+      if (v.id === vendorId) {
+        const newStatus = action === "activate" ? "active" : "inactive";
+        return { ...v, status: newStatus };
+      }
+      return v;
+    });
+    setVendors(updatedVendors);
+    sessionStorage.setItem('vendors', JSON.stringify(updatedVendors));
+
+    // Update NGO stats
+    updateNGOStats({
+      activeVendors: updatedVendors.filter(v => v.status === "active").length
+    });
+
     toast({
-      title: action,
-      description: `${action} feature would be implemented here`,
+      title: `Vendor ${action}d`,
+      description: `${vendorName} has been ${action}d successfully.`,
     });
   };
 
@@ -193,28 +427,28 @@ const NGODashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <StatCard
                 title="Total Aid Distributed"
-                value="$125,430"
+                value={`$${ngoData.totalAidDistributed.toLocaleString()}`}
                 description="+12% from last month"
                 icon={Coins}
                 variant="success"
               />
               <StatCard
                 title="Total Beneficiaries"
-                value="1,247"
-                description="89 added this week"
+                value={ngoData.totalBeneficiaries.toString()}
+                description="Active registrations"
                 icon={Users}
                 variant="default"
               />
               <StatCard
                 title="Active Vendors"
-                value="23"
-                description="3 new partnerships"
+                value={ngoData.activeVendors.toString()}
+                description="Partnership network"
                 icon={Building}
                 variant="accent"
               />
               <StatCard
                 title="Current Balance"
-                value="$45,200"
+                value={`$${ngoData.currentBalance.toLocaleString()}`}
                 description="Available for allocation"
                 icon={TrendingUp}
                 variant="default"
@@ -223,13 +457,18 @@ const NGODashboard = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest aid allocations and redemptions</CardDescription>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Recent Activity</CardTitle>
+                    <CardDescription>Latest aid allocations and actions</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setShowAllTransactions(true)}>
+                    View All Transactions
+                  </Button>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {mockTransactions.slice(0, 5).map((transaction, index) => (
+                    {transactions.slice(0, 5).map((transaction, index) => (
                       <div key={index} className="flex items-center justify-between border-b pb-2">
                         <div>
                           <p className="font-medium">{transaction.type}</p>
@@ -251,21 +490,113 @@ const NGODashboard = () => {
                   <CardDescription>Common dashboard actions</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Button className="w-full justify-start" onClick={() => handleQuickAction("Register New Beneficiary")}>
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Register New Beneficiary
-                  </Button>
+                  <Dialog open={showBeneficiaryDialog} onOpenChange={setShowBeneficiaryDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="w-full justify-start">
+                        <UserPlus className="mr-2 h-4 w-4" />
+                        Register New Beneficiary
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Register New Beneficiary</DialogTitle>
+                        <DialogDescription>Add a new beneficiary to the system</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="name">Full Name</Label>
+                          <Input
+                            id="name"
+                            value={newBeneficiary.name}
+                            onChange={(e) => setNewBeneficiary(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Enter full name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="location">Location</Label>
+                          <Input
+                            id="location"
+                            value={newBeneficiary.location}
+                            onChange={(e) => setNewBeneficiary(prev => ({ ...prev, location: e.target.value }))}
+                            placeholder="Enter location"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="emergency">Emergency Contact</Label>
+                          <Input
+                            id="emergency"
+                            value={newBeneficiary.emergencyContact}
+                            onChange={(e) => setNewBeneficiary(prev => ({ ...prev, emergencyContact: e.target.value }))}
+                            placeholder="Enter emergency contact"
+                          />
+                        </div>
+                        <Button onClick={handleRegisterBeneficiary} className="w-full">
+                          Register Beneficiary
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
                   <Button variant="outline" className="w-full justify-start" onClick={() => setActiveTab("allocation")}>
                     <Coins className="mr-2 h-4 w-4" />
                     Allocate Aid Tokens
                   </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickAction("Add New Vendor")}>
-                    <Building className="mr-2 h-4 w-4" />
-                    Add New Vendor
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => handleQuickAction("Generate Report")}>
+
+                  <Dialog open={showVendorDialog} onOpenChange={setShowVendorDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start">
+                        <Building className="mr-2 h-4 w-4" />
+                        Add New Vendor
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add New Vendor</DialogTitle>
+                        <DialogDescription>Register a new vendor partner</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="vendorName">Vendor Name</Label>
+                          <Input
+                            id="vendorName"
+                            value={newVendor.name}
+                            onChange={(e) => setNewVendor(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Enter vendor name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="wallet">Wallet Address</Label>
+                          <Input
+                            id="wallet"
+                            value={newVendor.wallet}
+                            onChange={(e) => setNewVendor(prev => ({ ...prev, wallet: e.target.value }))}
+                            placeholder="0x..."
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="category">Category</Label>
+                          <Select value={newVendor.category} onValueChange={(value) => setNewVendor(prev => ({ ...prev, category: value }))}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="food">Food & Nutrition</SelectItem>
+                              <SelectItem value="health">Healthcare</SelectItem>
+                              <SelectItem value="education">Education</SelectItem>
+                              <SelectItem value="general">General Store</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button onClick={handleAddVendor} className="w-full">
+                          Add Vendor
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Button variant="outline" className="w-full justify-start" onClick={() => setActiveTab("analytics")}>
                     <BarChart3 className="mr-2 h-4 w-4" />
-                    Generate Report
+                    View Analytics
                   </Button>
                 </CardContent>
               </Card>
@@ -279,7 +610,7 @@ const NGODashboard = () => {
                 <h2 className="text-2xl font-bold">Beneficiary Management</h2>
                 <p className="text-muted-foreground">Manage and track all registered beneficiaries</p>
               </div>
-              <Button onClick={() => handleQuickAction("Add Beneficiary")}>
+              <Button onClick={() => setShowBeneficiaryDialog(true)}>
                 <UserPlus className="mr-2 h-4 w-4" />
                 Add Beneficiary
               </Button>
@@ -295,10 +626,6 @@ const NGODashboard = () => {
                   className="pl-10"
                 />
               </div>
-              <Button variant="outline" onClick={() => handleQuickAction("Filter Beneficiaries")}>
-                <Filter className="mr-2 h-4 w-4" />
-                Filter
-              </Button>
             </div>
 
             <Card>
@@ -310,7 +637,7 @@ const NGODashboard = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Photo</TableHead>
                       <TableHead>Location</TableHead>
-                      <TableHead>Verification</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Aid Balance</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -339,22 +666,36 @@ const NGODashboard = () => {
                         <TableCell>{beneficiary.location}</TableCell>
                         <TableCell>
                           <Badge variant={
-                            beneficiary.verification === "verified" ? "default" :
-                            beneficiary.verification === "pending" ? "secondary" : "destructive"
+                            beneficiary.status === "verified" ? "default" :
+                            beneficiary.status === "pending" ? "secondary" : "destructive"
                           }>
-                            {beneficiary.verification}
+                            {beneficiary.status}
                           </Badge>
                         </TableCell>
                         <TableCell>${beneficiary.aidReceived}</TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline" onClick={() => handleBeneficiaryAction("view", beneficiary.id)}>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handleBeneficiaryAction("view", beneficiary.id, beneficiary.name)}
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => handleBeneficiaryAction("verify", beneficiary.id)}>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handleBeneficiaryAction("verify", beneficiary.id, beneficiary.name)}
+                              disabled={beneficiary.status === "verified"}
+                            >
                               <CheckCircle className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => handleBeneficiaryAction("suspend", beneficiary.id)}>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handleBeneficiaryAction("suspend", beneficiary.id, beneficiary.name)}
+                              disabled={beneficiary.status === "suspended"}
+                            >
                               <Ban className="h-4 w-4" />
                             </Button>
                           </div>
@@ -374,7 +715,7 @@ const NGODashboard = () => {
                 <h2 className="text-2xl font-bold">Vendor Management</h2>
                 <p className="text-muted-foreground">Manage aid redemption partners</p>
               </div>
-              <Button onClick={() => handleQuickAction("Add Vendor")}>
+              <Button onClick={() => setShowVendorDialog(true)}>
                 <Building className="mr-2 h-4 w-4" />
                 Add Vendor
               </Button>
@@ -393,7 +734,7 @@ const NGODashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockVendors.map((vendor) => (
+                    {vendors.map((vendor) => (
                       <TableRow key={vendor.id}>
                         <TableCell>{vendor.name}</TableCell>
                         <TableCell className="font-mono">{vendor.wallet}</TableCell>
@@ -405,10 +746,18 @@ const NGODashboard = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button size="sm" variant="outline" onClick={() => handleVendorAction("view", vendor.id)}>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handleVendorAction("view", vendor.id, vendor.name)}
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => handleVendorAction(vendor.status === "active" ? "deactivate" : "activate", vendor.id)}>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handleVendorAction(vendor.status === "active" ? "deactivate" : "activate", vendor.id, vendor.name)}
+                            >
                               {vendor.status === "active" ? <XCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
                             </Button>
                           </div>
@@ -438,7 +787,7 @@ const NGODashboard = () => {
                           <SelectValue placeholder="Choose beneficiary" />
                         </SelectTrigger>
                         <SelectContent>
-                          {beneficiaries.filter(b => b.verification === "verified").map((beneficiary) => (
+                          {beneficiaries.filter(b => b.status === "verified").map((beneficiary) => (
                             <SelectItem key={beneficiary.id} value={beneficiary.id}>
                               {beneficiary.name} ({beneficiary.id})
                             </SelectItem>
@@ -489,7 +838,7 @@ const NGODashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {mockTransactions.filter(t => t.type === "Aid Allocation").map((transaction, index) => (
+                    {transactions.filter(t => t.type === "Aid Allocation").slice(0, 5).map((transaction, index) => (
                       <div key={index} className="flex items-center justify-between border-b pb-2">
                         <div>
                           <p className="font-medium">{transaction.user}</p>
@@ -518,30 +867,48 @@ const NGODashboard = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Distribution Trends</CardTitle>
-                  <CardDescription>Aid distribution over time</CardDescription>
+                  <CardDescription>Aid distribution over time by category</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 flex items-center justify-center border-2 border-dashed border-muted-foreground/25 rounded-lg">
-                    <div className="text-center">
-                      <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-muted-foreground">Chart visualization would appear here</p>
-                    </div>
-                  </div>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="food" fill="#8884d8" name="Food" />
+                      <Bar dataKey="health" fill="#82ca9d" name="Health" />
+                      <Bar dataKey="education" fill="#ffc658" name="Education" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Aid Categories</CardTitle>
+                  <CardTitle>Aid Categories Distribution</CardTitle>
                   <CardDescription>Distribution by category</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 flex items-center justify-center border-2 border-dashed border-muted-foreground/25 rounded-lg">
-                    <div className="text-center">
-                      <PieChart className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-muted-foreground">Pie chart would appear here</p>
-                    </div>
-                  </div>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <RechartsPieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </RechartsPieChart>
+                  </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>
@@ -549,21 +916,25 @@ const NGODashboard = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Impact Metrics</CardTitle>
-                <CardDescription>Key performance indicators</CardDescription>
+                <CardDescription>Key performance indicators based on real data</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-primary">89%</div>
-                    <p className="text-sm text-muted-foreground">Beneficiary Satisfaction</p>
+                    <div className="text-3xl font-bold text-primary">{Math.round((beneficiaries.filter(b => b.status === "verified").length / beneficiaries.length) * 100)}%</div>
+                    <p className="text-sm text-muted-foreground">Verification Rate</p>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-primary">95%</div>
-                    <p className="text-sm text-muted-foreground">Aid Redemption Rate</p>
+                    <div className="text-3xl font-bold text-primary">{Math.round((vendors.filter(v => v.status === "active").length / vendors.length) * 100)}%</div>
+                    <p className="text-sm text-muted-foreground">Active Vendors</p>
                   </div>
                   <div className="text-center">
-                    <div className="text-3xl font-bold text-primary">12.5s</div>
-                    <p className="text-sm text-muted-foreground">Avg. Transaction Time</p>
+                    <div className="text-3xl font-bold text-primary">${Math.round(ngoData.totalAidDistributed / ngoData.totalBeneficiaries)}</div>
+                    <p className="text-sm text-muted-foreground">Avg. Aid per Beneficiary</p>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-primary">{transactions.length}</div>
+                    <p className="text-sm text-muted-foreground">Total Transactions</p>
                   </div>
                 </div>
               </CardContent>
@@ -591,7 +962,7 @@ const NGODashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockTransactions.map((transaction, index) => (
+                    {transactions.slice(0, 10).map((transaction, index) => (
                       <TableRow key={index}>
                         <TableCell>{transaction.type}</TableCell>
                         <TableCell>{transaction.user}</TableCell>
@@ -599,7 +970,7 @@ const NGODashboard = () => {
                         <TableCell>{transaction.date}</TableCell>
                         <TableCell className="font-mono">{transaction.hash}</TableCell>
                         <TableCell>
-                          <Button size="sm" variant="outline" onClick={() => handleQuickAction("View on Blockchain")}>
+                          <Button size="sm" variant="outline" onClick={() => toast({ title: "Blockchain View", description: "Would open blockchain explorer" })}>
                             <ExternalLink className="h-4 w-4" />
                           </Button>
                         </TableCell>
@@ -612,6 +983,91 @@ const NGODashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Dialogs */}
+      {selectedBeneficiary && (
+        <Dialog open={!!selectedBeneficiary} onOpenChange={() => setSelectedBeneficiary(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Beneficiary Profile</DialogTitle>
+              <DialogDescription>View beneficiary details</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                {selectedBeneficiary.hasPhoto && selectedBeneficiary.biometricPhoto ? (
+                  <img 
+                    src={selectedBeneficiary.biometricPhoto} 
+                    alt="Beneficiary" 
+                    className="w-16 h-16 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center">
+                    <User className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedBeneficiary.name}</h3>
+                  <p className="text-sm text-muted-foreground">{selectedBeneficiary.id}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Location</Label>
+                  <p className="text-sm">{selectedBeneficiary.location}</p>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Badge variant={selectedBeneficiary.status === "verified" ? "default" : "secondary"}>
+                    {selectedBeneficiary.status}
+                  </Badge>
+                </div>
+                <div>
+                  <Label>Aid Balance</Label>
+                  <p className="text-sm">${selectedBeneficiary.aidReceived}</p>
+                </div>
+                <div>
+                  <Label>Verification Method</Label>
+                  <p className="text-sm">{selectedBeneficiary.verificationMethod || "Digital Identity"}</p>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* All Transactions Dialog */}
+      <Dialog open={showAllTransactions} onOpenChange={setShowAllTransactions}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>All Transactions</DialogTitle>
+            <DialogDescription>Complete transaction history</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-96 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Hash</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.map((transaction, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{transaction.type}</TableCell>
+                    <TableCell>{transaction.user}</TableCell>
+                    <TableCell>${transaction.amount}</TableCell>
+                    <TableCell>{transaction.date}</TableCell>
+                    <TableCell className="font-mono text-xs">{transaction.hash}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
