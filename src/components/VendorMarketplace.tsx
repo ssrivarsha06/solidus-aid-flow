@@ -91,6 +91,34 @@ const VendorMarketplace = () => {
     
     sessionStorage.setItem('userTransactions', JSON.stringify([...newTransactions, ...existingTransactions]));
 
+    // Update aid categories based on redemptions
+    const currentCategories = JSON.parse(sessionStorage.getItem('aidCategories') || '{"food": 45, "education": 80, "healthcare": 0}');
+    const categoryUpdates = { food: 0, education: 0, healthcare: 0 };
+    
+    selectedItems.forEach(item => {
+      const tokenValue = item.tokens * 2; // Convert tokens to dollar value (2:1 ratio)
+      if (item.vendorCategory === "Food & Nutrition") {
+        categoryUpdates.food += tokenValue;
+      } else if (item.vendorCategory === "Education") {
+        categoryUpdates.education += tokenValue;
+      } else if (item.vendorCategory === "Healthcare") {
+        categoryUpdates.healthcare += tokenValue;
+      }
+    });
+
+    const updatedCategories = {
+      food: currentCategories.food + categoryUpdates.food,
+      education: currentCategories.education + categoryUpdates.education,
+      healthcare: currentCategories.healthcare + categoryUpdates.healthcare
+    };
+    
+    sessionStorage.setItem('aidCategories', JSON.stringify(updatedCategories));
+
+    // Update total aid received
+    const currentTotalAid = parseInt(sessionStorage.getItem('totalAidReceived') || '450');
+    const totalRedemptionValue = totalTokens * 2; // Convert tokens to dollar value
+    sessionStorage.setItem('totalAidReceived', (currentTotalAid + totalRedemptionValue).toString());
+
     setSelectedItems([]);
     toast({
       title: "Redemption Successful!",
