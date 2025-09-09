@@ -35,6 +35,7 @@ const Dashboard = () => {
     { name: "Healthcare", balance: 0, icon: Heart, color: "text-muted-foreground" },
   ]);
   const [totalAidReceived, setTotalAidReceived] = useState(450);
+  const [pendingAid, setPendingAid] = useState(75);
   const [showAllTransactions, setShowAllTransactions] = useState(false);
   
   useEffect(() => {
@@ -87,16 +88,26 @@ const Dashboard = () => {
       sessionStorage.setItem('totalAidReceived', '450');
     }
 
+    // Load pending aid
+    const storedPendingAid = sessionStorage.getItem('pendingAid');
+    if (storedPendingAid) {
+      setPendingAid(parseInt(storedPendingAid));
+    } else {
+      sessionStorage.setItem('pendingAid', '75');
+    }
+
     // Listen for token updates
     const handleTokenUpdate = () => {
       const updatedTokens = sessionStorage.getItem('userTokens');
       const updatedTransactions = sessionStorage.getItem('userTransactions');
       const updatedCategories = sessionStorage.getItem('aidCategories');
       const updatedTotalAid = sessionStorage.getItem('totalAidReceived');
+      const updatedPendingAid = sessionStorage.getItem('pendingAid');
       
       if (updatedTokens) setUserTokens(parseInt(updatedTokens));
       if (updatedTransactions) setRecentTransactions(JSON.parse(updatedTransactions));
       if (updatedTotalAid) setTotalAidReceived(parseInt(updatedTotalAid));
+      if (updatedPendingAid) setPendingAid(parseInt(updatedPendingAid));
       if (updatedCategories) {
         const categories = JSON.parse(updatedCategories);
         setAidCategories([
@@ -147,12 +158,12 @@ const Dashboard = () => {
     memberSince: userData.registrationDate ? new Date(userData.registrationDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : defaultData.memberSince,
     totalAidReceived: totalAidReceived,
     activeTokens: userTokens,
-    pendingAid: defaultData.pendingAid,
+    pendingAid: pendingAid,
     recentTransactions: recentTransactions.slice(0, 3),
     verificationMethod: userData.verificationMethod,
     hasPhoto: userData.hasPhoto,
     verificationFiles: userData.verificationFiles || []
-  } : { ...defaultData, hasPhoto: false, verificationMethod: null, totalAidReceived: totalAidReceived };
+  } : { ...defaultData, hasPhoto: false, verificationMethod: null, totalAidReceived: totalAidReceived, pendingAid: pendingAid };
 
   return (
     <div className="min-h-screen bg-gradient-subtle py-8 px-4 sm:px-6 lg:px-8">
